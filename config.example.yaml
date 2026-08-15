@@ -1,0 +1,128 @@
+# ============================================================
+# 新能源电车半自动日报配置（复制为 config.yaml 后按需修改）
+# ============================================================
+
+# ---------- 数据源 ----------
+# type: rss(默认) | html
+#   rss  - 标准 RSS/RSSHub/真RSS XML 源
+#   html - 直接爬取 HTML 列表页，需配置 selectors
+# selectors: item/title/link/date/text (CSS 选择器)
+# base_url: 用于拼接相对链接
+
+# ====== ✓ 实测可爬取的信源（2026-08-15 验证） ======
+
+sources:
+  # ---------- Tier 1: 政府/监管（最权威，一手政策法规） ----------
+  - name: 工信部·全部动态
+    # 真实 RSS XML 接口，含工信动态/部领导活动/文件发布等
+    url: https://www.miit.gov.cn/api-gateway/jpaas-plugins-web-server/front/rss/getinfo?webId=8d828e408d90447786ddbe128d495e9e&columnIds=d3e2bede1bc045e2875fc7161c01db7d,028da85b0dbd4c9cb96fd5f421cd32b8,e4d6c56063fa4edca257cc2e24ad473c,161ae25e72be496f93cd1c1a79f5cc2b,ca517c97303b40cf80bd668b35f6148f
+    enabled: true
+
+  # ---------- Tier 2: 行业协会（权威数据与研究） ----------
+  - name: 中国电动汽车百人会
+    # 实测 ✓ HTML 可解析，列表在 div.newfocus_list > ul > li
+    type: html
+    url: https://www.chinaev100.com/focus/list/45
+    base_url: https://www.chinaev100.com
+    enabled: true
+    selectors:
+      item: div.newfocus_list ul li
+      title: div.info div.tit a
+      link: div.info div.tit a
+      date: div.time span.timefrist
+
+  - name: 新能源汽车国家大数据联盟
+    # 实测 ✓ 首页文章链接可获取，文章在 div.timeline-box-wrap 中
+    type: html
+    url: http://www.ndanev.com/
+    base_url: http://www.ndanev.com
+    enabled: true
+    selectors:
+      item: div.timeline-box-wrap
+      title: a
+      link: a
+
+  - name: 中汽协·行业要闻
+    # 实测 ✓ HTML 可解析，列表在 div.box-b > ul > li
+    type: html
+    url: http://www.caam.org.cn/chn/8/cate_82/list_1.html
+    base_url: http://www.caam.org.cn
+    enabled: true
+    selectors:
+      item: div.box-b ul li
+      title: a span.cont
+      link: a
+      date: a span.time
+
+  # ---------- Tier 3: 权威媒体 ----------
+  # 注意：以下 RSSHub 源在沙箱网络中被屏蔽，需在本机运行
+  - name: 第一电动网
+    url: https://www.d1ev.com/rss
+    enabled: false  # RSS 链接 404，需到官网确认最新 RSS 地址
+
+  - name: 人民日报·汽车
+    url: https://rsshub.app/people/auto
+    enabled: false  # RSSHub 国内需自部署
+
+  - name: 36氪汽车
+    url: https://rsshub.app/36kr/channel/107
+    enabled: false
+
+  - name: 汽车之家新能源
+    url: https://rsshub.app/autohome/ev/0
+    enabled: false
+
+  # ====== 可选扩展（按需启用） ======
+  #- name: 易车网新能源
+  #  url: https://rsshub.app/yiche/ev
+  #  enabled: false
+  #
+  #- name: 电池网
+  #  url: http://www.battery.com.cn/rss
+  #  enabled: false
+
+# ---------- 抓取 ----------
+fetch:
+  hours: 48                # 只保留最近 N 小时内的资讯
+  max_items_per_source: 30 # 每个源最多取多少条
+  timeout: 20              # 单源请求超时（秒）
+
+# ---------- AI 整理 ----------
+organize:
+  min_reports: 4           # 每日小报告数量下限
+  max_reports: 10          # 每日小报告数量上限
+  max_items_in_prompt: 60  # 单次喂给模型的资讯条数上限
+
+# ---------- 星级评估标准 ----------
+rating:
+  scale: 5                 # 5 星制
+  criteria:
+    - name: 行业影响力
+      weight: 35
+      desc: 对新能源汽车行业的影响范围与深度（如政策、技术突破、巨头动态）
+    - name: 市场关注度
+      weight: 25
+      desc: 对消费者或投资者的参考价值，是否涉及热门车型、价格、销量
+    - name: 信息新鲜度
+      weight: 15
+      desc: 是否为当日首发新闻、有独立信息增量
+    - name: 可信度
+      weight: 15
+      desc: 信源权威性与事实可核程度
+    - name: 实用性
+      weight: 10
+      desc: 对购车决策、行业研究或日常工作的实际参考价值
+
+# ---------- 模型 ----------
+llm:
+  model: deepseek-chat     # 任意 OpenAI 兼容模型名
+  temperature: 0.3
+  max_tokens: 4096
+
+# ---------- 审核页面 ----------
+review:
+  host: 0.0.0.0
+  port: 7860
+
+# ---------- 数据目录 ----------
+data_dir: data

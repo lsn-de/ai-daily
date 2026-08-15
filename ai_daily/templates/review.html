@@ -1,0 +1,290 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>新能源电车日报 · 人工审核</title>
+<style>
+  :root {
+    --bg: #f5f6f8; --card: #fff; --line: #e4e7ec; --txt: #1a2233;
+    --sub: #6b7385; --brand: #3b5bfd; --ok: #16a34a; --no: #dc2626;
+    --warn: #d97706; --chip: #eef1fb;
+  }
+  * { box-sizing: border-box; margin: 0; }
+  body { font-family: -apple-system, "PingFang SC", "Microsoft YaHei", sans-serif;
+         background: var(--bg); color: var(--txt); }
+  header { position: sticky; top: 0; z-index: 10; background: #fff;
+           border-bottom: 1px solid var(--line); padding: 14px 24px; }
+  h1 { font-size: 18px; margin-bottom: 10px; }
+  .toolbar { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
+  .toolbar input[type=date] { padding: 6px 10px; border: 1px solid var(--line);
+                              border-radius: 8px; font-size: 14px; }
+  .toolbar button { padding: 7px 16px; border: none; border-radius: 8px;
+                    background: var(--brand); color: #fff; font-size: 14px; cursor: pointer; }
+  .stats { font-size: 13px; color: var(--sub); }
+  .progress { height: 6px; background: var(--line); border-radius: 4px; margin-top: 12px; overflow: hidden; }
+  .progress > div { height: 100%; background: var(--ok); width: 0; transition: width .3s; }
+
+  main { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+         gap: 16px; padding: 24px; max-width: 1400px; margin: 0 auto; }
+  .card { background: var(--card); border: 1px solid var(--line); border-radius: 12px;
+          padding: 16px; cursor: pointer; transition: box-shadow .15s, transform .15s;
+          display: flex; flex-direction: column; gap: 8px; }
+  .card:hover { box-shadow: 0 6px 20px rgba(20,30,60,.10); transform: translateY(-2px); }
+  .card .top { display: flex; justify-content: space-between; gap: 8px; align-items: flex-start; }
+  .card h3 { font-size: 15px; line-height: 1.45; }
+  .badge { flex-shrink: 0; font-size: 12px; padding: 2px 8px; border-radius: 20px; white-space: nowrap; }
+  .badge.pending { background: #fef3c7; color: var(--warn); }
+  .badge.approved { background: #dcfce7; color: var(--ok); }
+  .badge.rejected { background: #fee2e2; color: var(--no); }
+  .chip { display: inline-block; font-size: 12px; background: var(--chip);
+          color: var(--brand); border-radius: 6px; padding: 2px 8px; margin-right: 6px; }
+  .stars { color: #f5a623; font-size: 15px; letter-spacing: 2px; }
+  .stars .ai-tag { color: var(--sub); font-size: 11px; letter-spacing: 0; margin-left: 4px; }
+  .preview { font-size: 13px; color: var(--sub); line-height: 1.6;
+             display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; }
+  .card .foot { font-size: 12px; color: var(--sub); border-top: 1px dashed var(--line); padding-top: 8px; }
+
+  .overlay { position: fixed; inset: 0; background: rgba(15,20,35,.45); z-index: 20; }
+  .drawer { position: fixed; top: 0; right: 0; bottom: 0; width: min(560px, 96vw);
+            background: #fff; z-index: 21; overflow-y: auto; padding: 24px 24px 120px;
+            animation: slidein .2s ease; }
+  @keyframes slidein { from { transform: translateX(40px); opacity: 0; } to { transform: none; opacity: 1; } }
+  .drawer h2 { font-size: 16px; margin-bottom: 4px; }
+  .drawer .meta { font-size: 12px; color: var(--sub); margin-bottom: 16px; }
+  .drawer label { display: block; font-size: 13px; font-weight: 600; margin: 14px 0 6px; }
+  .drawer input.title, .drawer textarea { width: 100%; border: 1px solid var(--line);
+      border-radius: 8px; padding: 8px 10px; font-size: 14px; font-family: inherit; }
+  .drawer textarea { min-height: 140px; line-height: 1.7; resize: vertical; }
+  .rating-box { background: #f8f9fc; border-radius: 10px; padding: 14px; margin-top: 6px; }
+  .rating-box .big { font-size: 20px; color: #f5a623; letter-spacing: 3px; }
+  .rating-box .reason { font-size: 13px; color: var(--sub); margin: 6px 0 10px; }
+  .crit { display: flex; align-items: center; gap: 8px; font-size: 12px; margin-top: 6px; }
+  .crit .name { width: 64px; color: var(--sub); flex-shrink: 0; }
+  .crit .bar { flex: 1; height: 8px; background: var(--line); border-radius: 4px; overflow: hidden; }
+  .crit .bar > div { height: 100%; background: var(--brand); }
+  .crit .val { width: 28px; text-align: right; }
+  .pick-stars { font-size: 26px; color: #f5a623; cursor: pointer; user-select: none; letter-spacing: 4px; }
+  .pick-stars span.off { color: #d7dae3; }
+  .hint { font-size: 12px; color: var(--sub); }
+  .sources { font-size: 13px; }
+  .sources li { margin: 6px 0; line-height: 1.5; }
+  .sources a { color: var(--brand); text-decoration: none; word-break: break-all; }
+  .actions { display: flex; gap: 10px; margin-top: 22px; position: sticky; bottom: 0;
+             background: #fff; padding: 12px 0; border-top: 1px solid var(--line); }
+  .actions button { flex: 1; padding: 10px; border: none; border-radius: 8px;
+                    font-size: 14px; cursor: pointer; }
+  .btn-ok { background: var(--ok); color: #fff; }
+  .btn-no { background: var(--no); color: #fff; }
+  .btn-ghost { background: #fff; color: var(--sub); border: 1px solid var(--line) !important; }
+  .empty { grid-column: 1 / -1; text-align: center; color: var(--sub); padding: 60px 0; font-size: 14px; }
+  .toast { position: fixed; bottom: 24px; left: 50%; transform: translateX(-50%);
+           background: #1a2233; color: #fff; padding: 10px 20px; border-radius: 8px;
+           font-size: 13px; opacity: 0; transition: opacity .2s; z-index: 30; }
+</style>
+</head>
+<body>
+<header>
+  <h1>⚡ 新能源电车日报 · 人工审核台</h1>
+  <div class="toolbar">
+    <input type="date" id="dateInput">
+    <button onclick="load()">刷新</button>
+    <span class="stats" id="stats"></span>
+    <span class="stats" id="hint-stats"></span>
+  </div>
+  <div class="progress"><div id="bar"></div></div>
+</header>
+
+<main id="grid"></main>
+
+<div class="overlay" id="overlay" onclick="closeDrawer()" hidden></div>
+<div class="drawer" id="drawer" hidden></div>
+<div class="toast" id="toast"></div>
+
+<script>
+let reports = [], items = [], currentDate = "";
+
+function starText(n) { n = n || 0; return "★".repeat(n) + "☆".repeat(Math.max(0, 5 - n)); }
+function esc(s) { return String(s ?? "").replace(/[&<>"']/g,
+  c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c])); }
+function effStars(r) {
+  if (r.human_stars) return r.human_stars;
+  return r.rating ? (r.rating.stars || 0) : 0;
+}
+function statusName(s) { return {pending:"待审核", approved:"已通过", rejected:"已拒绝"}[s] || s; }
+
+function init() {
+  document.getElementById("dateInput").value = new Date().toISOString().slice(0, 10);
+  load();
+}
+
+async function load() {
+  currentDate = document.getElementById("dateInput").value;
+  const grid = document.getElementById("grid");
+  grid.innerHTML = '<div class="empty">加载中 ...</div>';
+  try {
+    const res = await fetch(`/api/reports?date=${currentDate}`);
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || "加载失败");
+    reports = data.reports || [];
+    items = data.items || [];
+  } catch (e) {
+    reports = []; items = [];
+    grid.innerHTML = `<div class="empty">${esc(e.message)}</div>`;
+    return;
+  }
+  render();
+}
+
+function render() {
+  const grid = document.getElementById("grid");
+  if (!reports.length) {
+    grid.innerHTML = '<div class="empty">当日暂无待审报告</div>';
+    return;
+  }
+  const counts = {pending: 0, approved: 0, rejected: 0};
+  reports.forEach(r => counts[r.status] = (counts[r.status] || 0) + 1);
+  const total = reports.length, done = counts.approved + counts.rejected;
+  document.getElementById("stats").textContent =
+    `共 ${total} 份 · 待审 ${counts.pending} · 通过 ${counts.approved} · 拒绝 ${counts.rejected}`;
+  document.getElementById("bar").style.width = (total ? done / total * 100 : 0) + "%";
+
+  grid.innerHTML = reports.map(r => {
+    const srcCount = (r.covered_items || []).length;
+    const humanNote = r.human_stars ? "（已人工调整）" : "";
+    return `
+    <div class="card" onclick="openDrawer('${r.id}')">
+      <div class="top">
+        <h3>${esc(r.title)}</h3>
+        <span class="badge ${r.status}">${statusName(r.status)}</span>
+      </div>
+      <div>
+        <span class="chip">${esc(r.category)}</span>
+        <span class="stars">${starText(effStars(r))}<span class="ai-tag">AI 评分${humanNote}</span></span>
+      </div>
+      <div class="preview">${esc(r.content)}</div>
+      <div class="foot">${r.id} · 引用 ${srcCount} 条资讯 · ${(r.tags || []).map(esc).join(" / ")}</div>
+    </div>`;
+  }).join("");
+}
+
+function findReport(id) { return reports.find(r => r.id === id); }
+
+function openDrawer(id) {
+  const r = findReport(id);
+  if (!r) return;
+  const covered = items.filter(it => (r.covered_items || []).includes(it.id));
+  const rating = r.rating || {};
+  const crits = Object.entries(rating.scores || {}).map(([name, v]) => `
+    <div class="crit">
+      <span class="name">${esc(name)}</span>
+      <div class="bar"><div style="width:${Math.min(100, (v || 0) * 10)}%"></div></div>
+      <span class="val">${v ?? "-"}</span>
+    </div>`).join("") || '<div class="hint">无细分评分</div>';
+
+  const pickHtml = [1,2,3,4,5].map(i =>
+    `<span class="${i <= (r.human_stars || 0) ? "" : "off"}" data-n="${i}"
+       onmouseover="hoverStars(${i})" onmouseout="restoreStars()"
+       onclick="pickStars(${i})">★</span>`).join("");
+
+  document.getElementById("drawer").innerHTML = `
+    <h2>${r.id} · ${esc(r.title)}</h2>
+    <div class="meta">分类：${esc(r.category)} · 标签：${(r.tags || []).map(esc).join(" / ")} · 状态：${statusName(r.status)}</div>
+
+    <label>标题（可直接修改）</label>
+    <input class="title" id="editTitle" value="${esc(r.title)}">
+
+    <label>正文（可直接修改）</label>
+    <textarea id="editContent">${esc(r.content)}</textarea>
+
+    <label>AI 星级评估</label>
+    <div class="rating-box">
+      <div class="big">${starText(rating.stars || 0)}
+        <span class="hint" style="letter-spacing:0;color:#6b7385;font-size:13px;margin-left:6px">${rating.stars ? rating.stars + " / 5 星" : "未评估"}</span>
+      </div>
+      <div class="reason">${esc(rating.reason || "")}</div>
+      ${crits}
+    </div>
+
+    <label>人工调整星级（默认沿用 AI 评分）</label>
+    <div class="pick-stars" id="pickStars">${pickHtml}</div>
+    <div class="hint" id="pickHint">${r.human_stars ? "已改为 " + r.human_stars + " 星" : "点击星星可覆盖 AI 星级，通过时生效"}</div>
+
+    <label>引用来源（${covered.length} 条）</label>
+    <ul class="sources">
+      ${covered.map(it => `<li>${esc(it.source)}：<a href="${esc(it.url)}" target="_blank">${esc(it.title)}</a></li>`).join("")
+        || '<li class="hint">无</li>'}
+    </ul>
+
+    <div class="actions">
+      <button class="btn-ok" onclick="submitAction('${r.id}','approve')">✓ 通过并保存修改</button>
+      <button class="btn-no" onclick="submitAction('${r.id}','reject')">✗ 拒绝</button>
+      ${r.status !== "pending" ? `<button class="btn-ghost" onclick="submitAction('${r.id}','reset')">恢复待审</button>` : ""}
+      <button class="btn-ghost" onclick="closeDrawer()">关闭</button>
+    </div>`;
+
+  document.getElementById("overlay").hidden = false;
+  document.getElementById("drawer").hidden = false;
+  document.getElementById("drawer").dataset.rid = r.id;
+  document.getElementById("drawer").dataset.picked = r.human_stars || 0;
+}
+
+function closeDrawer() {
+  document.getElementById("overlay").hidden = true;
+  document.getElementById("drawer").hidden = true;
+}
+
+function hoverStars(n) {
+  document.querySelectorAll("#pickStars span").forEach((s, i) =>
+    s.classList.toggle("off", i >= n));
+}
+function restoreStars() {
+  const picked = +(document.getElementById("drawer").dataset.picked || 0);
+  document.querySelectorAll("#pickStars span").forEach((s, i) =>
+    s.classList.toggle("off", i >= picked));
+}
+function pickStars(n) {
+  const d = document.getElementById("drawer");
+  d.dataset.picked = n;
+  document.getElementById("pickHint").textContent = "已改为 " + n + " 星";
+  restoreStars();
+}
+
+async function submitAction(id, action) {
+  const drawer = document.getElementById("drawer");
+  const body = {
+    action,
+    title: document.getElementById("editTitle").value,
+    content: document.getElementById("editContent").value,
+    stars: +(drawer.dataset.picked || 0) || undefined,
+  };
+  try {
+    const res = await fetch(`/api/reports/${id}?date=${currentDate}`, {
+      method: "POST",
+      headers: {"Content-Type": "application/json"},
+      body: JSON.stringify(body),
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || "操作失败");
+    const i = reports.findIndex(r => r.id === id);
+    if (i >= 0) reports[i] = data.report;
+    render();
+    closeDrawer();
+    toast(action === "approve" ? `已通过：${data.report.title}`
+        : action === "reject" ? `已拒绝：${data.report.title}` : "已恢复待审");
+  } catch (e) {
+    toast("失败：" + e.message);
+  }
+}
+
+function toast(msg) {
+  const t = document.getElementById("toast");
+  t.textContent = msg;
+  t.style.opacity = 1;
+  setTimeout(() => t.style.opacity = 0, 1600);
+}
+
+init();
+</script>
+</body>
+</html>
